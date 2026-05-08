@@ -3,6 +3,7 @@ import pykitti
 import numpy as np
 import torch
 import cv2
+from camera_model import convertLidar
 
 # Load the dataset
 basedir = './data/kitti'
@@ -25,6 +26,7 @@ confThreshold = 0.6
 
 #all image generators
 imgGen = dataset.cam2
+veloGen = dataset.velo
 
 #labels of objects
 classLabels = {
@@ -36,13 +38,15 @@ classLabels = {
     7: "truck",
 }
 
-for img in imgGen:
+for img, velo in zip(imgGen, veloGen):
     #get yolo prediction
     results = model.predict(img)
 
     #convert img to opencv friendly format
     img = np.array(img)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+    scanData = convertLidar(velo, dataset)
 
     #create mask and filter
     cls = results[0].boxes.cls
@@ -59,7 +63,14 @@ for img in imgGen:
     for r, l, c in zip(rect, label, confidence):
         cv2.rectangle(img, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), (0, 255, 0), 3)
         cv2.putText(img, classLabels[l], (int(r[0]), int(r[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
-        cv2.putText(img, str(c), (int(r[2]), int(r[3])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        cv2.putText(img, str(round(c, 4)), (int(r[2]), int(r[3])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        boundBoxMask = (scanData[:,0] > int(r[0])) & (scanData[:,0] < int(r[2])) & (scanData[:,1] > int(r[1])) & (scanData[:,1] < int(r[3]))
+        scanData = scanData[boundBoxMask]
+        if len(scanData) == 0:
+            continue
+        depthValues = scanData[:,2].ravel()
+        quartiles = np.quantile(depthValues, [0.25, 0.5, 0.75])
+        cv2.putText(img, str(round(quartiles[0], 4)), (int(r[2]), int(r[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (128, 0, 128), 2)
 
     #display image
 
