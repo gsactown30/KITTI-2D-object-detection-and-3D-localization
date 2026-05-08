@@ -66,10 +66,10 @@ for img, velo in zip(imgGen, veloGen):
         cv2.putText(img, str(round(c, 4)), (int(r[2]), int(r[3])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
 
         boundBoxMask = (scanData[:,0] > int(r[0])) & (scanData[:,0] < int(r[2])) & (scanData[:,1] > int(r[1])) & (scanData[:,1] < int(r[3]))
-        scanData = scanData[boundBoxMask]
-        if len(scanData) == 0:
+        boxData = scanData[boundBoxMask].copy()
+        if len(boxData) == 0:
             continue
-        depthValues = scanData[:,2].ravel()
+        depthValues = boxData[:,2].ravel()
         quartiles = np.quantile(depthValues, [0.25, 0.5, 0.75])
         cv2.putText(img, str(round(quartiles[0], 4)), (int(r[2]), int(r[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (128, 0, 128), 2)
 
