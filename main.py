@@ -4,6 +4,9 @@ import numpy as np
 import torch
 import cv2
 from camera_model import convertLidar
+import time
+
+startTime = time.perf_counter()
 
 # Load the dataset
 basedir = './data/kitti'
@@ -37,6 +40,8 @@ classLabels = {
     5: "bus",
     7: "truck",
 }
+
+kInverse = np.linalg.inv(dataset.calib.K_cam2)
 
 for img, velo in zip(imgGen, veloGen):
     #get yolo prediction
@@ -77,7 +82,7 @@ for img, velo in zip(imgGen, veloGen):
         v = (r[1] + r[3]) / 2
         imgVector = np.array([u, v, 1])
         imgVector = imgVector[np.newaxis, :].T
-        backProject = quartiles[0] * np.dot(np.linalg.inv(dataset.calib.K_cam2), imgVector)
+        backProject = quartiles[0] * np.dot(kInverse, imgVector)
         cv2.putText(img, str(backProject[0]), (int(r[0]), int(r[3] + 25)), cv2.FONT_HERSHEY_SIMPLEX, 0.9,(255, 255, 0), 1)
         cv2.putText(img, str(backProject[1]), (int(r[0]), int(r[3]) + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
         cv2.putText(img, str(backProject[2]), (int(r[0]), int(r[3]) + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
@@ -89,3 +94,6 @@ for img, velo in zip(imgGen, veloGen):
 
 video.release()
 cv2.destroyAllWindows()
+
+endTime = time.perf_counter()
+print(f"Program runtime: {endTime - startTime:.2f} seconds")
