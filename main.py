@@ -25,7 +25,7 @@ video = cv2.VideoWriter('fullDrive.mp4', fourcc, 10, (1242, 375))
 
 #filter thresholds
 classIDArr = [0, 1, 2, 3, 5, 6, 7]
-confThreshold = 0.4
+confThreshold = 0.5
 
 #all image generators
 imgGen = dataset.cam2
@@ -72,18 +72,21 @@ for img, velo in zip(imgGen, veloGen):
 
     #create bounding box, label, and confidence level in each image
     for r, l, c in zip(rect, label, confidence):
+        #filter points
+        boundBoxMask = (scanData[:, 0] > int(r[0])) & (scanData[:, 0] < int(r[2])) & (scanData[:, 1] > int(r[1])) & (
+                    scanData[:, 1] < int(r[3]))
+        boxData = scanData[boundBoxMask].copy()
+        if len(boxData) < 30:
+            continue
+        colors = allColors[boundBoxMask].copy()
+
+        #make label/box
         cv2.rectangle(img, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), (0, 255, 0), 1)
         cv2.putText(img, classLabels[l], (int(r[0]), int(r[1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (128, 0, 128), 2)
 
-        boundBoxMask = (scanData[:,0] > int(r[0])) & (scanData[:,0] < int(r[2])) & (scanData[:,1] > int(r[1])) & (scanData[:,1] < int(r[3]))
-        boxData = scanData[boundBoxMask].copy()
-        colors = allColors[boundBoxMask].copy()
-        if len(boxData) == 0:
-            continue
-        depthValues = boxData[:,2].ravel()
-        quartiles = np.quantile(depthValues, [0.25, 0.5, 0.75])
-
         #back projection
+        depthValues = boxData[:, 2].ravel()
+        quartiles = np.quantile(depthValues, [0.25, 0.5, 0.75])
         u = (r[0] + r[2]) / 2
         v = (r[1] + r[3]) / 2
         imgVector = np.array([u, v, 1])
@@ -98,7 +101,6 @@ for img, velo in zip(imgGen, veloGen):
         for p, c in zip(boxData, colors):
             color = tuple(map(int, c[0]))
             cv2.circle(img, (int(p[0]), int(p[1])), 1, color, -1)
-
 
     #display image
     video.write(img)
