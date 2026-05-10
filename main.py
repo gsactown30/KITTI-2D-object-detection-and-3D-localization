@@ -64,6 +64,11 @@ for img, velo in zip(imgGen, veloGen):
     label = filteredResults.cls.numpy()
     confidence = filteredResults.conf.numpy()
 
+    #normalize and create colormap
+    depthNorm = cv2.normalize(scanData[:, 2],None,0,255,cv2.NORM_MINMAX).astype(np.uint8)
+    depthNorm = 255 - depthNorm
+    allColors = cv2.applyColorMap(depthNorm.reshape(-1, 1), cv2.COLORMAP_JET)
+
     #create bounding box, label, and confidence level in each image
     for r, l, c in zip(rect, label, confidence):
         cv2.rectangle(img, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), (0, 255, 0), 3)
@@ -72,6 +77,7 @@ for img, velo in zip(imgGen, veloGen):
 
         boundBoxMask = (scanData[:,0] > int(r[0])) & (scanData[:,0] < int(r[2])) & (scanData[:,1] > int(r[1])) & (scanData[:,1] < int(r[3]))
         boxData = scanData[boundBoxMask].copy()
+        colors = allColors[boundBoxMask].copy()
         if len(boxData) == 0:
             continue
         depthValues = boxData[:,2].ravel()
@@ -86,6 +92,11 @@ for img, velo in zip(imgGen, veloGen):
         cv2.putText(img, str(backProject[0]), (int(r[0]), int(r[3] + 25)), cv2.FONT_HERSHEY_SIMPLEX, 0.9,(255, 255, 0), 1)
         cv2.putText(img, str(backProject[1]), (int(r[0]), int(r[3]) + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
         cv2.putText(img, str(backProject[2]), (int(r[0]), int(r[3]) + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
+
+        #draw lidar point overlaid on objects
+        for p, c in zip(boxData, colors):
+            color = tuple(map(int, c[0]))
+            cv2.circle(img, (int(p[0]), int(p[1])), 1, color, -1)
 
 
     #display image
