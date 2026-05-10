@@ -25,7 +25,7 @@ video = cv2.VideoWriter('fullDrive.mp4', fourcc, 10, (1242, 375))
 
 #filter thresholds
 classIDArr = [0, 1, 2, 3, 5, 6, 7]
-confThreshold = 0.6
+confThreshold = 0.4
 
 #all image generators
 imgGen = dataset.cam2
@@ -42,6 +42,7 @@ classLabels = {
 }
 
 kInverse = np.linalg.inv(dataset.calib.K_cam2)
+rtInverse = np.linalg.inv(dataset.calib.T_cam2_velo)
 
 for img, velo in zip(imgGen, veloGen):
     #get yolo prediction
@@ -71,9 +72,8 @@ for img, velo in zip(imgGen, veloGen):
 
     #create bounding box, label, and confidence level in each image
     for r, l, c in zip(rect, label, confidence):
-        cv2.rectangle(img, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), (0, 255, 0), 3)
-        cv2.putText(img, classLabels[l], (int(r[0]), int(r[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
-        cv2.putText(img, str(round(c, 4)), (int(r[2]), int(r[3])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        cv2.rectangle(img, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), (0, 255, 0), 1)
+        cv2.putText(img, classLabels[l], (int(r[0]), int(r[1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (128, 0, 128), 2)
 
         boundBoxMask = (scanData[:,0] > int(r[0])) & (scanData[:,0] < int(r[2])) & (scanData[:,1] > int(r[1])) & (scanData[:,1] < int(r[3]))
         boxData = scanData[boundBoxMask].copy()
@@ -82,16 +82,17 @@ for img, velo in zip(imgGen, veloGen):
             continue
         depthValues = boxData[:,2].ravel()
         quartiles = np.quantile(depthValues, [0.25, 0.5, 0.75])
-        cv2.putText(img, str(round(quartiles[0], 4)), (int(r[2]), int(r[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (128, 0, 128), 2)
 
+        #back projection
         u = (r[0] + r[2]) / 2
         v = (r[1] + r[3]) / 2
         imgVector = np.array([u, v, 1])
-        imgVector = imgVector[np.newaxis, :].T
-        backProject = quartiles[0] * np.dot(kInverse, imgVector)
-        cv2.putText(img, str(backProject[0]), (int(r[0]), int(r[3] + 25)), cv2.FONT_HERSHEY_SIMPLEX, 0.9,(255, 255, 0), 1)
-        cv2.putText(img, str(backProject[1]), (int(r[0]), int(r[3]) + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
-        cv2.putText(img, str(backProject[2]), (int(r[0]), int(r[3]) + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0),1)
+        imgVector = imgVector.reshape(-1, 1)
+        backProjectCam = quartiles[0] * np.dot(kInverse, imgVector)
+        backProjectCam = np.vstack((backProjectCam, 1))
+        backProjectLidar = np.dot(rtInverse, backProjectCam)
+        distance = np.linalg.norm(backProjectLidar)
+        cv2.putText(img, str(round(distance, 1)), (int(r[0]), int(r[3] + 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.6,(0, 0, 255), 2)
 
         #draw lidar point overlaid on objects
         for p, c in zip(boxData, colors):
@@ -100,7 +101,6 @@ for img, velo in zip(imgGen, veloGen):
 
 
     #display image
-
     video.write(img)
 
 video.release()
